@@ -1,0 +1,32 @@
+{
+    "ios": {
+        "latest": "1.0.1",
+        "minimum": "1.0.0",
+        "url": "http://example.com/myAppUpdate",
+        "enabled": true
+    },
+    "android": {
+        "latest": "1.0.1",
+        "minimum": "0.0.1",
+        "url": "http://example.com/myAppUpdate/android",
+        "enabled": true
+    },
+    "linux": {
+        "latest": "1.0.1",
+        "minimum": "1.0.0",
+        "url": "http://example.com/myAppUpdate/linux",
+        "enabled": false
+    },
+    "osx": {
+        "latest": "1.0.1",
+        "minimum": "1.0.0",
+        "url": "http://example.com/myAppUpdate/osx",
+        "enabled": true
+    },
+    "windows": {
+        "latest": "1.0.1",
+        "minimum": "1.0.0",
+        "url": "http://example.com/myAppUpdate/windows",
+        "enabled": true
+    }
+}

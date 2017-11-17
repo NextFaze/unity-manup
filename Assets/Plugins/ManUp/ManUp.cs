@@ -15,6 +15,7 @@ namespace NextFaze
     {
         None,
         Ok,
+        Update,
         OkAndUpdate
     }
 
@@ -30,40 +31,58 @@ namespace NextFaze
         Valid
     }
 
+    public struct ManUpMessage
+    {
+        public string Title;
+        public string Message;
+
+        public ManUpMessage(string title, string message)
+        {
+            Title = title;
+            Message = message;
+        }
+    }
+
     public class ManUp : MonoBehaviour
     {
-        public static ManUp Instance {
+        public static ManUp Instance
+        {
             get;
             private set;
         }
 
         [Header("Configuration")]
-        [SerializeField] string ConfigURL = @"";
+        [SerializeField]
+        string ConfigURL = @"";
 
         private bool triggerCheck = false;
         [SerializeField] bool logToFile = true;
 
-        [Range(0.1f, 24.0f)]
+        [Range(1f, 72f)]
         [SerializeField]
-        double HoursBeforeStale;
+        double HoursBeforeStale = 24;
         [SerializeField] bool ShowVersionInRelease = false;
 
         [Header("UI Setup")]
-        [SerializeField] Button OKButton;
-        [SerializeField] Button UpdateButton;
-        [SerializeField] Text MessageText;
-        [SerializeField] Text VersionText;
-        [SerializeField] GameObject UIPanel;
-
-        [SerializeField] UnityEvent onCompletion;
-
-        [Header("Debug Options")]
-        [SerializeField] string versionOverride = "1.0";
-        [SerializeField] RuntimePlatform platformOverride;
-
         [SerializeField]
-        [TextArea(5, 10)]
-        string configOverride;
+        Button OKButton = null;
+        [SerializeField] Text OKButtonText = null;
+        [SerializeField] Button UpdateButton = null;
+        [SerializeField] Text UpdateButtonText = null;
+        [SerializeField] Text TitleText = null;
+        [SerializeField] Text MessageText = null;
+        [SerializeField] Text VersionText = null;
+        [SerializeField] GameObject UIPanel = null;
+
+        [SerializeField] UnityEvent onCompletion = null;
+
+#if UNITY_EDITOR
+        [Header("Debug Options")]
+        [SerializeField]
+        string versionOverride = "1.0";
+        [SerializeField] RuntimePlatform platformOverride = RuntimePlatform.OSXEditor;
+        [SerializeField] TextAsset configOverride = null;
+#endif
 
         #region Kill Switch Properites
 
@@ -96,12 +115,6 @@ namespace NextFaze
         public string AppName
         {
             get { return Application.productName; }
-        }
-
-        public string MaintenanceMessage
-        {
-            get;
-            private set;
         }
 
         public string UpdateLink
@@ -143,15 +156,64 @@ namespace NextFaze
             get { return Application.persistentDataPath + "/ManUp.log"; }
         }
 
+        public ManUpMessage MandatoryMessage
+        {
+            get;
+            private set;
+        }
+
+        public ManUpMessage OptionalMessage
+        {
+            get;
+            private set;
+        }
+
+        public ManUpMessage MaintenanceMessage
+        {
+            get;
+            private set;
+        }
+
+        public string ButtonUpdateText
+        {
+            get;
+            private set;
+        }
+
+        public string ButtonLaterText
+        {
+            get;
+            private set;
+        }
+
+        public string ButtonOKText
+        {
+            get;
+            private set;
+        }
+
         #endregion
 
         #region JSON Keys
 
-        static readonly string maintenanceModeKey = "maintenanceMode";
-        static readonly string maintenanceMessageKey = "maintenanceMessage";
-        static readonly string appUpdateLinkKey = "appUpdateLink";
-        static readonly string appVersionLatestKey = "appVersionLatest";
-        static readonly string appVersionMinKey = "appVersionMin";
+        static readonly string manupSettingsKey = "manup";
+
+        static readonly string messageTitleKey = "title";
+        static readonly string messageTextKey = "message";
+
+        static readonly string buttonsUpdateKey = "update";
+        static readonly string buttonsLaterKey = "later";
+        static readonly string buttonsOKKey = "ok";
+
+        static readonly string mandatoryUpdateDictKey = "mandatory";
+        static readonly string optionalUpdateDictKey = "optional";
+        static readonly string maintenanceDictKey = "maintenance";
+        static readonly string buttonsDictKey = "buttons";
+
+        static readonly string maintenanceModeKey = "enabled";
+        static readonly string appUpdateLinkKey = "url";
+        static readonly string appVersionLatestKey = "latest";
+        static readonly string appVersionMinKey = "minimum";
 
         static readonly string platformAndroidKey = "android";
         static readonly string platformIOSKey = "ios";
@@ -161,6 +223,7 @@ namespace NextFaze
 
         #endregion
 
+        #region Logging
         void LogToFile(string message)
         {
 #if !UNITY_WINRT
@@ -175,8 +238,14 @@ namespace NextFaze
                 writer.Close();
             }
 #endif
-        }
 
+#if UNITY_EDITOR
+            Debug.Log(message);
+#endif
+        }
+#endregion
+
+#region Unity Methods
         void Start()
         {
             if (Instance != null) {
@@ -186,6 +255,14 @@ namespace NextFaze
 
             Instance = this;
             DontDestroyOnLoad(this.gameObject);
+
+            MandatoryMessage = new ManUpMessage("Update Required", "An update to {{app}} is required to continue.");
+            OptionalMessage = new ManUpMessage("Update Available", "An update to {{app}} is available. Would you like to update?");
+            MaintenanceMessage = new ManUpMessage("{{app}} Unavailable", "{{app}} is currently unavailable, please check back again later.");
+
+            this.ButtonOKText = "OK";
+            this.ButtonUpdateText = "Update";
+            this.ButtonLaterText = "Later";
 
             LogToFile("ManUp Start");
 
@@ -220,8 +297,8 @@ namespace NextFaze
                 this.triggerCheck = false;
 
 #if UNITY_EDITOR
-                if (string.IsNullOrEmpty(this.configOverride) == false) {
-                    ParseConfigJSON(this.configOverride);
+                if (configOverride) {
+                    ParseConfigJSON(this.configOverride.text);
                     return;
                 }
 #endif
@@ -236,8 +313,9 @@ namespace NextFaze
                 }
             }
         }
+#endregion
 
-        #region UI
+#region UI
 
         void SetupUI()
         {
@@ -260,8 +338,6 @@ namespace NextFaze
 
                 this.VersionText.gameObject.SetActive(Debug.isDebugBuild || this.ShowVersionInRelease);
                 this.VersionText.text = this.CurrentVersion.ToString();
-                this.UpdateButton.onClick.AddListener(UpdateClicked);
-                this.OKButton.onClick.AddListener(OkClicked);
 
                 this.UIPanel.transform.localScale = new Vector3(0, 0, 0);
 
@@ -282,7 +358,7 @@ namespace NextFaze
         {
             LogToFile("Showing UI");
 
-            ShowMessage("Please wait...", ManUpButtons.None);
+            ShowMessage("Checking config", "Please wait...", ManUpButtons.None);
             float scale = this.UIPanel.transform.localScale.x;
             this.UIPanel.SetActive(true);
             while (scale < 1.0f)
@@ -322,9 +398,13 @@ namespace NextFaze
             yield return null;
         }
 
-        void ShowMessage(string message, ManUpButtons buttons)
+        void ShowMessage(string title, string message, ManUpButtons buttons)
         {
+            this.TitleText.text = title;
             this.MessageText.text = message;
+
+            this.UpdateButtonText.text = this.ButtonUpdateText;
+            this.OKButtonText.text = this.ButtonOKText;
 
             switch (buttons)
             {
@@ -338,10 +418,11 @@ namespace NextFaze
                     this.OKButton.gameObject.SetActive(true);
                     this.UpdateButton.gameObject.SetActive(false);
 
-                    RectTransform rect = this.OKButton.GetComponent<RectTransform>();
-                    Vector2 anchorMax = rect.anchorMax;
-                    anchorMax.x = 1;
-                    rect.anchorMax = anchorMax;
+                    break;
+
+                case ManUpButtons.Update:
+                    this.OKButton.gameObject.SetActive(false);
+                    this.UpdateButton.gameObject.SetActive(true);
 
                     break;
 
@@ -349,18 +430,20 @@ namespace NextFaze
                     this.OKButton.gameObject.SetActive(true);
                     this.UpdateButton.gameObject.SetActive(true);
 
+                    this.OKButtonText.text = this.ButtonLaterText;
+
                     break;
             }
         }
 
-        void UpdateClicked()
+        public void UpdateClicked()
         {
             LogToFile("Update Clicked");
             OpenUpdateURL();
             FlipKillswitch();
         }
 
-        void OkClicked()
+        public void OkClicked()
         {
             LogToFile("OK Clicked");
             if (this.MaintenanceMode || this.MinimumVersion > this.CurrentVersion)
@@ -373,7 +456,7 @@ namespace NextFaze
             }
         }
 
-        #endregion
+#endregion
 
         bool CheckForInternet()
         {
@@ -382,7 +465,6 @@ namespace NextFaze
 
         bool CachedFileIsStale()
         {
-
             if (File.Exists(this.CachedFilePath))
             {
                 DateTime lastWriteTime = File.GetLastWriteTime(this.CachedFilePath);
@@ -394,7 +476,7 @@ namespace NextFaze
             return true;
         }
 
-        #region ManUp Config parsing
+#region ManUp Config parsing
 
         IEnumerator DownloadConfig()
         {
@@ -439,19 +521,13 @@ namespace NextFaze
             }
         }
 
-        void ParseConfigJSON(string configJSON)
+        internal void ParseConfigJSON(string configJSON)
         {
             LogToFile("Parsing config");
             CurrentState = ManUpState.Processing;
             JSONNode rootNode = JSON.Parse(configJSON);
 
-            this.MaintenanceMode = rootNode[maintenanceModeKey].AsBool;
-            this.MaintenanceMessage = rootNode[maintenanceMessageKey];
-
-            JSONNode appUpdateLinkNode = rootNode[appUpdateLinkKey];
-            JSONNode appVersionCurrentNode = rootNode[appVersionLatestKey];
-            JSONNode appVersionMinNode = rootNode[appVersionMinKey];
-
+            // Determine Platform
             string platformKey = "";
             RuntimePlatform platform = Application.platform;
 
@@ -459,7 +535,7 @@ namespace NextFaze
             platform = this.platformOverride;
 #endif
 
-            switch (Application.platform) {
+            switch (platform) {
 				
 				case RuntimePlatform.Android:
 					platformKey = platformAndroidKey;
@@ -488,37 +564,84 @@ namespace NextFaze
 					LogToFile("Deactivating");
 					this.Activated = false;
 					
-					break;
+					return;
 			}
+
+            JSONNode platformNode = rootNode[platformKey];
 			
-			this.UpdateLink = appUpdateLinkNode[platformKey];
-			this.LatestVersion = new Version(appVersionCurrentNode[platformKey]);
-			this.MinimumVersion = new Version(appVersionMinNode[platformKey]);
+            this.UpdateLink = platformNode[appUpdateLinkKey];
+            this.LatestVersion = new Version(platformNode[appVersionLatestKey]);
+            this.MinimumVersion = new Version(platformNode[appVersionMinKey]);
+            this.MaintenanceMode = !platformNode[maintenanceModeKey].AsBool;
+
+            JSONNode manupSettings = rootNode[manupSettingsKey];
+            if (manupSettings != null) {
+
+                JSONNode mandatorySettings = manupSettings[mandatoryUpdateDictKey];
+                if (mandatorySettings != null)
+                {
+                    string title = mandatorySettings[messageTitleKey] ?? "Update Required";
+                    string message = mandatorySettings[messageTextKey] ?? "An update to {{app}} is required to continue.";
+                    this.MandatoryMessage = new ManUpMessage(title, message);
+                }
+
+                JSONNode optionalSettings = manupSettings[optionalUpdateDictKey];
+                if (optionalSettings != null)
+                {
+                    string title = mandatorySettings[messageTitleKey] ?? "Update Available";
+                    string message = mandatorySettings[messageTextKey] ?? "An update to {{app}} is available. Would you like to update?";
+                    this.OptionalMessage = new ManUpMessage(title, message);
+                }
+
+                JSONNode maintenanceSettings = manupSettings[maintenanceDictKey];
+                if (maintenanceSettings != null)
+                {
+                    string title = mandatorySettings[messageTitleKey] ?? "{{app}} Unavailable";
+                    string message = mandatorySettings[messageTextKey] ?? "{{app}} is currently unavailable, please check back again later.";
+                    this.MaintenanceMessage = new ManUpMessage(title, message);
+                }
+
+                JSONNode buttonsSettings = manupSettings[buttonsDictKey];
+                if (buttonsSettings != null)
+                {
+                    this.ButtonUpdateText = mandatorySettings[buttonsUpdateKey] ?? "Update";
+                    this.ButtonLaterText = mandatorySettings[buttonsLaterKey] ?? "Later";
+                    this.ButtonOKText = mandatorySettings[buttonsOKKey] ?? "OK";
+                }
+            }
 			
 			StartCoroutine(CheckConfig());
 		}
 		
 		IEnumerator CheckConfig()
 		{
-			CurrentState = ManUpState.Checking;
-			string message = "";
+            CurrentState = ManUpState.Checking;
+            string title = "";
+            string message = "";
 			ManUpButtons buttons = ManUpButtons.Ok;
 			
 			if (this.MaintenanceMode) {
-				message = this.MaintenanceMessage;
+                title = this.MaintenanceMessage.Title;
+                message = this.MaintenanceMessage.Message;
 			}
-			else if (this.MinimumVersion > this.CurrentVersion) {
-				message = string.Format("There is a mandatory update for {0}, please update to continue.", this.AppName);
+            else if (this.MinimumVersion > this.CurrentVersion) {
+                title = this.MandatoryMessage.Title;
+                message = this.MandatoryMessage.Message;
+                buttons = ManUpButtons.Update;
 			}
-			else if (this.LatestVersion > this.CurrentVersion) {
-				message = string.Format("There is a new update for {0}.", this.AppName);
-				buttons = ManUpButtons.OkAndUpdate;
-			}
+            else if (this.LatestVersion > this.CurrentVersion) {
+                title = this.OptionalMessage.Title;
+                message = this.OptionalMessage.Message;
+                buttons = ManUpButtons.OkAndUpdate;
+            }
+
+            title = title.Replace("{{app}}", this.AppName);
+            message = message.Replace("{{app}}", this.AppName);
 			
 			if (!string.IsNullOrEmpty(message)) {
 				CurrentState = ManUpState.Invalid;
 				StartCoroutine(ShowUI());
-				ShowMessage(message, buttons);
+				ShowMessage(title, message, buttons);
 			}
 			else {
 				CurrentState = ManUpState.Valid;
