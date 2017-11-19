@@ -61,7 +61,7 @@ even though it means a little more work in maintaining the file.
 
 ### Import the module into your app
 
-TDB
+Just import the unity package here!
 
 ## Demonstration App
-TDB
+An example can be found on the example branch of this repository
