@@ -64,15 +64,14 @@ namespace NextFaze
         [SerializeField] bool ShowVersionInRelease = false;
 
         [Header("UI Setup")]
-        [SerializeField]
-        Button OKButton = null;
+        [SerializeField] GameObject UIPanel = null;
+        [SerializeField] Text TitleText = null;
+        [SerializeField] Text MessageText = null;
+        [SerializeField] Button OKButton = null;
         [SerializeField] Text OKButtonText = null;
         [SerializeField] Button UpdateButton = null;
         [SerializeField] Text UpdateButtonText = null;
-        [SerializeField] Text TitleText = null;
-        [SerializeField] Text MessageText = null;
         [SerializeField] Text VersionText = null;
-        [SerializeField] GameObject UIPanel = null;
 
         [SerializeField] UnityEvent onCompletion = null;
 
@@ -319,6 +318,64 @@ namespace NextFaze
 
         void SetupUI()
         {
+            bool uiReferencesExist = true;
+
+            if (UnityEngine.EventSystems.EventSystem.current == null) {
+                // We need an event system
+                var eventSystem = new GameObject("Event System");
+                eventSystem.AddComponent<UnityEngine.EventSystems.EventSystem>();
+                eventSystem.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+                eventSystem.transform.parent = this.transform;
+            }
+
+            if (this.UIPanel == null)
+            {
+                Debug.LogWarning("No UI Panel set for ManUp");
+                uiReferencesExist = false;
+            }
+
+            if (this.MessageText == null)
+            {
+                Debug.LogWarning("No Message text set for ManUp");
+                uiReferencesExist = false;
+            }
+
+            if (this.TitleText == null)
+            {
+                Debug.LogWarning("No Title text set for ManUp");
+                uiReferencesExist = false;
+            }
+
+            if (this.OKButton == null)
+            {
+                Debug.LogWarning("No OK Button set for ManUp");
+                uiReferencesExist = false;
+            }
+
+            if (this.OKButtonText == null)
+            {
+                Debug.LogWarning("No OK button text set for ManUp");
+                uiReferencesExist = false;
+            }
+
+            if (this.UpdateButton == null)
+            {
+                Debug.LogWarning("No Update Button set for ManUp");
+                uiReferencesExist = false;
+            }
+
+            if (this.UpdateButtonText == null)
+            {
+                Debug.LogWarning("No Update Button Text set for ManUp");
+                uiReferencesExist = false;
+            }
+
+
+            if (!uiReferencesExist) {
+                Debug.LogError("UI not defined for ManUp!");
+                return;
+            }
+
             try
             {
                 LogToFile("Setting up UI");
@@ -328,7 +385,7 @@ namespace NextFaze
                 this.CurrentVersion = new Version(Application.version);
 
 #if UNITY_EDITOR
-                if (this.versionOverride != null)
+                if (!string.IsNullOrEmpty(this.versionOverride))
                 {
                     this.CurrentVersion = new Version(this.versionOverride);
                 }
@@ -336,8 +393,11 @@ namespace NextFaze
 
                 LogToFile(string.Format("Current version is {0}", this.CurrentVersion.ToString()));
 
-                this.VersionText.gameObject.SetActive(Debug.isDebugBuild || this.ShowVersionInRelease);
-                this.VersionText.text = this.CurrentVersion.ToString();
+                if (this.VersionText)
+                {
+                    this.VersionText.gameObject.SetActive(Debug.isDebugBuild || this.ShowVersionInRelease);
+                    this.VersionText.text = this.CurrentVersion.ToString();
+                }
 
                 this.UIPanel.transform.localScale = new Vector3(0, 0, 0);
 

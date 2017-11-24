@@ -29,13 +29,24 @@ Mandatory Update (manup) works like this:
 
 ## Requirements
 
-Manup assumes you are using Semantic Versioning for your app.
+Manup assumes you are using Semantic Versioning for your app, and requires at least 2 values (i.e major.minor)
 
 ## Installation
 
-TDB
+Simply import the Unity package to get started. If you are already using SimpleJSON in your project, feel free to unselect it - otherwise there will be a conflict.
 
 ## Usage
+
+Once the package is imported, you will find the ManUp folder under Plugins. To get started you can drag the prefab into your main startup scene, this will keep the ManUp object persistent throughout the life of the app.
+
+* If an Event System is not detected, ManUp will create it's own.
+* You will need to set the Config URL in the editor to where you will be hosting your ManUp file. To make development easier, you can override this in the editor with a local text asset and drop it into the Config Override field. Be sure to also set the platform for the platform you wish to target.
+* If you wish to customise your UI layout, you can either do this by updating the prefab objects, or creating your own. Please ensure to assign the following to ManUp
+  * UI Panel (Should be the parent for the UI)
+  * Title and Message Text
+  * Ok button and text
+  * Update button and text
+  * Version text - if you wish to print the current app version
 
 ### Remote file
 You need a hosted json file that contains the version metadata. This _could_ be part of your API. However, 
@@ -59,9 +70,5 @@ even though it means a little more work in maintaining the file.
 }
 ```
 
-### Import the module into your app
-
-Just import the unity package here!
-
 ## Demonstration App
-An example can be found on the example branch of this repository
+An example can be found in this repository \o/
